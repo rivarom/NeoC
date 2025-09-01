@@ -1,0 +1,24 @@
+# Ignorar la caché de Python
+__pycache__/
+*.pyc
+
+# Ignorar entornos virtuales
+venv/
+.venv/
+env/
+.env/
+
+# Ignorar bases de datos
+*.db
+*.sqlite3
+
+# Ignorar Logs
+logs/
+*.log
+
+# Ignorar configuraciones del editor
+.vscode/
+.idea/
+
+# Ignorar archivo de secretos
+.env
