@@ -1,10 +1,9 @@
-# main.py
+# main.py 1
 from src.agent import Agencont
 import sys
 
 if __name__ == '__main__':
     agente_neoc = Agencont()
-    
     try:
         agente_neoc.iniciar_bucle_autonomo()
         
