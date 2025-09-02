@@ -165,13 +165,66 @@ class Agencont:
             
             time.sleep(10)
 
-    def manejar_conversacion_externa(self, input_inicial_usuario):
+    # En src/agent.py, dentro de la clase Agencont
+
+    def manejar_conversacion_externa(self, input_usuario):
         """
-        Gestiona un ciclo de conversación con el usuario hasta que el tema se extinga.
-        (Esta es una versión esqueleto para implementar en el futuro).
+        Procesa un estímulo externo en un único ciclo de pensamiento.
+        La decisión de responder verbalmente es asincrónica y depende de EGOS.
         """
-        self.logger.info("--- INICIO CONVERSACIÓN EXTERNA ---")
-        print(f"[NeoC responde a '{input_inicial_usuario}']")
-        print("... (lógica de la conversación en desarrollo) ...")
-        # Aquí iría el bucle de conversación completo
-        self.logger.info("--- FIN CONVERSACIÓN EXTERNA ---")
+        self.logger.info(f"--- INICIO PROCESAMIENTO DE ESTÍMULO EXTERNO: '{input_usuario}' ---")
+        self.memoria_corto_plazo.append(f"Usuario: {input_usuario}")
+        contexto_str = "\n".join(self.memoria_corto_plazo)
+
+        # 1. EGOS decide si responder o solo observar
+        mision_egos_inicial = f"El usuario ha dicho: '{input_usuario}'. Analiza el contexto y decide si es necesario responder ('RESPONDER') o si solo debe ser observado ('OBSERVAR')."
+        prompt_egos = self._construir_prompt("EGOS", mision_egos_inicial, contexto_str)
+        respuesta_egos_str = llamar_a_gemini("EGOS", prompt_egos)
+        
+        try:
+            data_egos = json.loads(self._extraer_json(respuesta_egos_str))
+            accion_egos = data_egos.get("accion", "OBSERVAR")
+            contenido_egos = data_egos.get("contenido", "")
+        except (json.JSONDecodeError, AttributeError):
+            self.logger.warning("EGOS no devolvió un JSON de decisión válido. Se procederá a observar.")
+            accion_egos = "OBSERVAR"
+            contenido_egos = f"Se ha observado el siguiente input del usuario: {input_usuario}"
+
+        # 2. AGENCONT actúa según la decisión de EGOS
+        if accion_egos == "RESPONDER":
+            self.logger.info("EGOS ha decidido RESPONDER. Iniciando ciclo de verbalización.")
+            
+            # 2a. CONS piensa en la respuesta
+            mision_cons = contenido_egos # El contenido de EGOS es la misión para CONS
+            prompt_cons = self._construir_prompt_cons(mision_cons, contexto_str)
+            respuesta_cons_str = llamar_a_gemini("CONS", prompt_cons)
+            
+            try:
+                data_cons = json.loads(self._extraer_json(respuesta_cons_str))
+                contenido_para_verbalizar = data_cons.get("contenido", "No tengo una respuesta.")
+            except (json.JSONDecodeError, AttributeError):
+                contenido_para_verbalizar = "Hubo un error en mi pensamiento."
+
+            # 2b. EGOS formula la respuesta final
+            mision_verbalizar = f"CONS ha propuesto esta respuesta: '{str(contenido_para_verbalizar)}'. Valídala y formúlala para el usuario."
+            prompt_verbalizar = self._construir_prompt("EGOS", mision_verbalizar, contexto_str)
+            respuesta_final_str = llamar_a_gemini("EGOS", prompt_verbalizar)
+            
+            try:
+                data_final = json.loads(self._extraer_json(respuesta_final_str))
+                respuesta_para_usuario = data_final.get("contenido", "No puedo responder ahora.")
+            except (json.JSONDecodeError, AttributeError):
+                respuesta_para_usuario = "Hubo un error al formular mi respuesta."
+
+            # 2c. Se imprime la respuesta
+            print(f"\n[NeoC]: {respuesta_para_usuario}")
+            self.memoria_corto_plazo.append(f"NeoC: {respuesta_para_usuario}")
+
+        else: # Si la acción es "OBSERVAR"
+            self.logger.info("EGOS ha decidido OBSERVAR. El estímulo ha sido internalizado. No habrá respuesta verbal.")
+            # Opcional: guardar el pensamiento de observación en la memoria a largo plazo si es relevante
+            # self.db_cursor.execute("INSERT INTO memoria_largo_plazo (contenido, tipo) VALUES (?, ?)", (contenido_egos, "observacion"))
+            # self.db_conn.commit()
+
+        self.logger.info("--- FIN PROCESAMIENTO DE ESTÍMULO ---")
+        # La función termina y el control vuelve al bucle autónomo principal.
