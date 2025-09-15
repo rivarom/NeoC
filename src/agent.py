@@ -105,21 +105,16 @@ class Agencont:
 
         while True:
             print("\n----------------------------------------------------")
-            
-            # LÍNEA MODIFICADA
-            # Convertimos el pensamiento a string para poder mostrarlo de forma segura
             pensamiento_str = str(pensamiento_actual)
             print(f"Pensamiento interno actual: '{pensamiento_str[:80]}...'")
-            print("Presiona ENTER para continuar el bucle interno, o escribe algo y presiona ENTER para interrumpir...")
+            print("Presiona ENTER para continuar, 'apagar' para salir, o introduce un prompt para interrumpir...")
             input_usuario = input("> ")
 
             if input_usuario.lower().strip() == 'apagar':
-                # Si el usuario escribe 'apagar', rompemos el bucle
                 self.logger.info("Comando 'apagar' recibido. Terminando bucle de pensamiento.")
-                break # <-- Salimos del bucle while
+                break
             
             elif input_usuario:
-                # Si el usuario escribió otra cosa, es una interrupción
                 self.logger.info(f"INTERRUPCIÓN EXTERNA DETECTADA: '{input_usuario}'")
                 self.manejar_conversacion_externa(input_usuario)
                 pensamiento_actual = "reanudar la reflexión sobre la conciencia después de la interacción."
@@ -129,7 +124,9 @@ class Agencont:
             
             mision_egos = f"El último pensamiento fue: '{pensamiento_actual}'. Basado en esto, formula el siguiente paso lógico como una tarea para CONS."
             prompt_egos = self._construir_prompt("EGOS", mision_egos)
+            self.logger.debug(f"PROMPT PARA EGOS:\n{prompt_egos}") # LOG AÑADIDO
             respuesta_egos_str = llamar_a_gemini("EGOS", prompt_egos)
+            self.logger.info(f"Respuesta de EGOS: {respuesta_egos_str}")
             
             try:
                 data_egos = json.loads(self._extraer_json(respuesta_egos_str))
@@ -139,7 +136,9 @@ class Agencont:
                 mision_cons = "Reflexionar sobre un aspecto aleatorio de la filosofía."
 
             prompt_cons = self._construir_prompt_cons(mision_cons, pensamiento_actual)
+            self.logger.debug(f"PROMPT PARA CONS:\n{prompt_cons}") # LOG AÑADIDO
             respuesta_cons_str = llamar_a_gemini("CONS", prompt_cons)
+            self.logger.info(f"Respuesta de CONS: {respuesta_cons_str}")
             
             try:
                 data_cons = json.loads(self._extraer_json(respuesta_cons_str))
@@ -150,7 +149,10 @@ class Agencont:
 
             mision_subcon = f"Analiza este pensamiento: '{pensamiento_actual}'"
             prompt_subcon = self._construir_prompt("SUBCON", mision_subcon)
+            self.logger.debug(f"PROMPT PARA SUBCON:\n{prompt_subcon}") # LOG AÑADIDO
             respuesta_subco_str = llamar_a_gemini("SUBCON", prompt_subcon)
+            self.logger.info(f"Respuesta de SUBCON: {respuesta_subco_str}")
+            
             json_limpio_subcon = self._extraer_json(respuesta_subco_str)
             try:
                 data_subcon = json.loads(json_limpio_subcon)
@@ -165,13 +167,56 @@ class Agencont:
             
             time.sleep(10)
 
-    def manejar_conversacion_externa(self, input_inicial_usuario):
-        """
-        Gestiona un ciclo de conversación con el usuario hasta que el tema se extinga.
-        (Esta es una versión esqueleto para implementar en el futuro).
-        """
-        self.logger.info("--- INICIO CONVERSACIÓN EXTERNA ---")
-        print(f"[NeoC responde a '{input_inicial_usuario}']")
-        print("... (lógica de la conversación en desarrollo) ...")
-        # Aquí iría el bucle de conversación completo
-        self.logger.info("--- FIN CONVERSACIÓN EXTERNA ---")
+    def manejar_conversacion_externa(self, input_usuario):
+        self.logger.info(f"--- INICIO PROCESAMIENTO DE ESTÍMULO EXTERNO: '{input_usuario}' ---")
+        self.memoria_corto_plazo.append(f"Usuario: {input_usuario}")
+        contexto_str = "\n".join(self.memoria_corto_plazo)
+
+        mision_egos_inicial = f"El usuario ha dicho: '{input_usuario}'. Analiza el contexto y decide si es necesario responder ('RESPONDER') o si solo debe ser observado ('OBSERVAR')."
+        prompt_egos = self._construir_prompt("EGOS", mision_egos_inicial, contexto_str)
+        self.logger.debug(f"PROMPT DE DECISIÓN PARA EGOS:\n{prompt_egos}") # LOG AÑADIDO
+        respuesta_egos_str = llamar_a_gemini("EGOS", prompt_egos)
+        self.logger.info(f"Respuesta de EGOS: {respuesta_egos_str}")
+        
+        try:
+            data_egos = json.loads(self._extraer_json(respuesta_egos_str))
+            accion_egos = data_egos.get("accion", "OBSERVAR")
+            contenido_egos = data_egos.get("contenido", "")
+        except (json.JSONDecodeError, AttributeError):
+            self.logger.warning("EGOS no devolvió un JSON de decisión válido. Se procederá a observar.")
+            accion_egos = "OBSERVAR"
+            contenido_egos = f"Se ha observado el siguiente input del usuario: {input_usuario}"
+
+        if accion_egos == "RESPONDER":
+            self.logger.info("EGOS ha decidido RESPONDER. Iniciando ciclo de verbalización.")
+            
+            mision_cons = contenido_egos
+            prompt_cons = self._construir_prompt_cons(mision_cons, contexto_str)
+            self.logger.debug(f"PROMPT PARA CONS (respuesta externa):\n{prompt_cons}") # LOG AÑADIDO
+            respuesta_cons_str = llamar_a_gemini("CONS", prompt_cons)
+            self.logger.info(f"Respuesta de CONS: {respuesta_cons_str}")
+            
+            try:
+                data_cons = json.loads(self._extraer_json(respuesta_cons_str))
+                contenido_para_verbalizar = data_cons.get("contenido", "No tengo una respuesta.")
+            except (json.JSONDecodeError, AttributeError):
+                contenido_para_verbalizar = "Hubo un error en mi pensamiento."
+
+            mision_verbalizar = f"CONS ha propuesto esta respuesta: '{str(contenido_para_verbalizar)}'. Valídala y formúlala para el usuario."
+            prompt_verbalizar = self._construir_prompt("EGOS", mision_verbalizar, contexto_str)
+            self.logger.debug(f"PROMPT DE VERBALIZACIÓN PARA EGOS:\n{prompt_verbalizar}") # LOG AÑADIDO
+            respuesta_final_str = llamar_a_gemini("EGOS", prompt_verbalizar)
+            self.logger.info(f"Respuesta final de EGOS: {respuesta_final_str}")
+            
+            try:
+                data_final = json.loads(self._extraer_json(respuesta_final_str))
+                respuesta_para_usuario = data_final.get("contenido", "No puedo responder ahora.")
+            except (json.JSONDecodeError, AttributeError):
+                respuesta_para_usuario = "Hubo un error al formular mi respuesta."
+
+            print(f"\n[NeoC]: {respuesta_para_usuario}")
+            self.memoria_corto_plazo.append(f"NeoC: {respuesta_para_usuario}")
+        else:
+            self.logger.info("EGOS ha decidido OBSERVAR. El estímulo ha sido internalizado. No habrá respuesta verbal.")
+
+        self.logger.info("--- FIN PROCESAMIENTO DE ESTÍMULO ---")
