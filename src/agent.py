@@ -1,4 +1,4 @@
-# src/agent.py (versión con logging de prompts mejorado)
+# src/agent.py (con logging de prompts corregido)
 import os
 import time
 import json
@@ -33,14 +33,14 @@ class Agencont:
             stream_handler.setFormatter(formatter)
             self.logger.addHandler(stream_handler)
         
-        # --- Logger para Prompts (MODIFICADO) ---
+        # --- Logger para Prompts (CORREGIDO) ---
         prompt_log_filename = f'logs/prompts_{timestamp}.log'
         self.prompt_logger = logging.getLogger(f"NeoC_Prompt_Logger_{timestamp}")
         self.prompt_logger.setLevel(logging.DEBUG)
         if not self.prompt_logger.handlers:
             prompt_file_handler = logging.FileHandler(prompt_log_filename, mode='w', encoding='utf-8')
-            # Formato cambiado para usar el nombre del subórgano en el levelname
-            prompt_formatter = logging.Formatter('%(asctime)s - PROMPT PARA %(levelname)s\n%(message)s\n--------------------\n')
+            # Formato corregido para usar un campo personalizado 'suborgano'
+            prompt_formatter = logging.Formatter('%(asctime)s - PROMPT PARA %(suborgano)s\n%(message)s\n--------------------\n')
             prompt_file_handler.setFormatter(prompt_formatter)
             self.prompt_logger.addHandler(prompt_file_handler)
         
@@ -67,8 +67,6 @@ class Agencont:
             )
         """)
         self.db_conn.commit()
-
-    # --- (El resto de los métodos hasta 'iniciar_bucle_autonomo' no cambian) ---
 
     def _cargar_directiva(self, nombre_suborgano: str) -> str:
         try:
@@ -105,17 +103,11 @@ class Agencont:
         if self.output_queue:
             self.output_queue.put({"type": msg_type, "content": content})
             
-    # --- MÉTODO PARA LOGGEAR PROMPTS (NUEVO Y MODIFICADO) ---
+    # --- MÉTODO PARA LOGGEAR PROMPTS (CORREGIDO) ---
     def _log_prompt(self, suborgano: str, prompt: str):
-        # Usamos los niveles de logging para pasar el nombre del subórgano
-        if suborgano.upper() == "EGOS":
-            self.prompt_logger.log(logging.WARNING, prompt) # Nivel WARNING para EGOS
-        elif suborgano.upper() == "CONS":
-            self.prompt_logger.log(logging.ERROR, prompt) # Nivel ERROR para CONS
-        elif suborgano.upper() == "SUBCON":
-            self.prompt_logger.log(logging.CRITICAL, prompt) # Nivel CRITICAL para SUBCON
-        else:
-            self.prompt_logger.log(logging.INFO, prompt) # Nivel INFO por defecto
+        # Pasamos el nombre del subórgano como información extra al logger.
+        # El Formatter personalizado ('%(suborgano)s') usará este campo.
+        self.prompt_logger.info(prompt, extra={'suborgano': suborgano.upper()})
 
     def iniciar_bucle_autonomo(self):
         self.logger.info("Iniciando bucle de pensamiento autónomo.")
@@ -139,7 +131,7 @@ class Agencont:
             
             mision_egos = f"El último pensamiento fue: '{pensamiento_actual}'. Basado en esto, formula el siguiente paso lógico como una tarea para CONS."
             prompt_egos = self._construir_prompt("EGOS", mision_egos)
-            self._log_prompt("EGOS", prompt_egos) # <-- LLAMADA MODIFICADA
+            self._log_prompt("EGOS", prompt_egos) # <-- No cambia la llamada
             respuesta_egos_str = llamar_a_gemini("EGOS", prompt_egos)
             self.logger.info(f"Respuesta de EGOS: {respuesta_egos_str}")
             self._log_output("log", f"EGOS (interno): {respuesta_egos_str}")
@@ -151,7 +143,7 @@ class Agencont:
                 mision_cons = "Reflexionar sobre un aspecto aleatorio de la filosofía."
 
             prompt_cons = self._construir_prompt_cons(mision_cons, pensamiento_actual)
-            self._log_prompt("CONS", prompt_cons) # <-- LLAMADA MODIFICADA
+            self._log_prompt("CONS", prompt_cons) # <-- No cambia la llamada
             respuesta_cons_str = llamar_a_gemini("CONS", prompt_cons)
             self.logger.info(f"Respuesta de CONS: {respuesta_cons_str}")
             self._log_output("log", f"CONS (interno): {respuesta_cons_str}")
@@ -164,7 +156,7 @@ class Agencont:
 
             mision_subcon = f"Analiza este pensamiento: '{pensamiento_actual}'"
             prompt_subcon = self._construir_prompt("SUBCON", mision_subcon)
-            self._log_prompt("SUBCON", prompt_subcon) # <-- LLAMADA MODIFICADA
+            self._log_prompt("SUBCON", prompt_subcon) # <-- No cambia la llamada
             respuesta_subco_str = llamar_a_gemini("SUBCON", prompt_subcon)
             self.logger.info(f"Respuesta de SUBCON: {respuesta_subco_str}")
             self._log_output("log", f"SUBCON (interno): {respuesta_subco_str}")
@@ -189,7 +181,7 @@ class Agencont:
 
         mision_egos_inicial = f"El usuario ha dicho: '{input_usuario}'. Analiza el contexto y decide si es necesario responder ('RESPONDER') o si solo debe ser observado ('OBSERVAR')."
         prompt_egos = self._construir_prompt("EGOS", mision_egos_inicial, contexto_str)
-        self._log_prompt("EGOS", prompt_egos) # <-- LLAMADA MODIFICADA
+        self._log_prompt("EGOS", prompt_egos) # <-- No cambia la llamada
         respuesta_egos_str = llamar_a_gemini("EGOS", prompt_egos)
         self.logger.info(f"Respuesta de EGOS: {respuesta_egos_str}")
         
@@ -207,7 +199,7 @@ class Agencont:
             
             mision_cons = contenido_egos
             prompt_cons = self._construir_prompt_cons(mision_cons, contexto_str)
-            self._log_prompt("CONS", prompt_cons) # <-- LLAMADA MODIFICADA
+            self._log_prompt("CONS", prompt_cons) # <-- No cambia la llamada
             respuesta_cons_str = llamar_a_gemini("CONS", prompt_cons)
             self.logger.info(f"Respuesta de CONS: {respuesta_cons_str}")
             
@@ -219,7 +211,7 @@ class Agencont:
 
             mision_verbalizar = f"CONS ha propuesto esta respuesta: '{str(contenido_para_verbalizar)}'. Valídala y formúlala para el usuario."
             prompt_verbalizar = self._construir_prompt("EGOS", mision_verbalizar, contexto_str)
-            self._log_prompt("EGOS", prompt_verbalizar) # <-- LLAMADA MODIFICADA
+            self._log_prompt("EGOS", prompt_verbalizar) # <-- No cambia la llamada
             respuesta_final_str = llamar_a_gemini("EGOS", prompt_verbalizar)
             self.logger.info(f"Respuesta final de EGOS: {respuesta_final_str}")
             
