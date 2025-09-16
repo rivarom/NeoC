@@ -50,6 +50,7 @@ class NeoCGUI:
             self.chat_text.config(state='normal')
             self.chat_text.insert(tk.END, f"Usuario: {message}\n")
             self.chat_text.config(state='disabled')
+            self.chat_text.see(tk.END) # <-- AÑADIDO: Autoscroll para la ventana de chat
             self.entry_box.delete(0, tk.END)
 
     def process_output_queue(self):
@@ -62,10 +63,13 @@ class NeoCGUI:
                 self.log_text.config(state='normal')
                 self.log_text.insert(tk.END, f"{content}\n")
                 self.log_text.config(state='disabled')
+                self.log_text.see(tk.END) # <-- AÑADIDO: Autoscroll para la ventana de logs
             elif msg_type == "response":
                 self.chat_text.config(state='normal')
                 self.chat_text.insert(tk.END, f"NeoC: {content}\n")
                 self.chat_text.config(state='disabled')
+                self.chat_text.see(tk.END) # <-- AÑADIDO: Autoscroll para la ventana de chat
+
                 
         except queue.Empty:
             pass
